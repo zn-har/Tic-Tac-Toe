@@ -11,14 +11,40 @@ const int CELL_SIZE = SCREEN_WIDTH / 3;
 enum GameState { PLAYING, WIN_X, WIN_O, DRAW };
 enum CellValue { EMPTY = 0, X = 1, O = -1 };
 
+class Stack {
+private:
+    int top;
+    int arr[18];
+public:
+    Stack() {
+        top = -1;
+    }
+
+    void push(int x, int y) {
+        arr[++top] = x;
+        arr[++top] = y;
+    }
+
+    int* pop() {
+        if (top < 1) return nullptr;
+        int* result = &arr[top - 1];
+        top -= 2;
+        return result;
+    }
+
+    bool isEmpty() {
+        return top < 1;
+    }
+};
+
 void renderText(SDL_Renderer* renderer, TTF_Font* font, const char* text, int x, int y) {
-    SDL_Color textColor = {255, 0, 0, 255};  // Red color
+    SDL_Color textColor = {255, 0, 0, 255};
     SDL_Surface* surface = TTF_RenderText_Solid(font, text, textColor);
     SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-    
+
     SDL_Rect rect = {x, y, surface->w, surface->h};
     SDL_RenderCopy(renderer, texture, NULL, &rect);
-    
+
     SDL_FreeSurface(surface);
     SDL_DestroyTexture(texture);
 }
@@ -27,22 +53,22 @@ void drawCircle(SDL_Renderer* renderer, int centerX, int centerY) {
     const int radius = 75;
     const int segments = 100;
     SDL_Point points[101];
-    
+
     for (int i = 0; i <= segments; i++) {
         float theta = 2.0f * M_PI * i / segments;
         points[i].x = centerX + radius * cos(theta);
         points[i].y = centerY + radius * sin(theta);
     }
-    
+
     SDL_RenderDrawLines(renderer, points, segments + 1);
 }
 
 void drawX(SDL_Renderer* renderer, int centerX, int centerY) {
     const int offset = 100;
-    SDL_RenderDrawLine(renderer, centerX - offset, centerY - offset, 
-                      centerX + offset, centerY + offset);
-    SDL_RenderDrawLine(renderer, centerX - offset, centerY + offset, 
-                      centerX + offset, centerY - offset);
+    SDL_RenderDrawLine(renderer, centerX - offset, centerY - offset,
+                       centerX + offset, centerY + offset);
+    SDL_RenderDrawLine(renderer, centerX - offset, centerY + offset,
+                       centerX + offset, centerY - offset);
 }
 
 GameState checkGameState(const int grid[3][3]) {
@@ -52,19 +78,19 @@ GameState checkGameState(const int grid[3][3]) {
         if (grid[0][i] != EMPTY && grid[0][i] == grid[1][i] && grid[1][i] == grid[2][i])
             return (grid[0][i] == X) ? WIN_X : WIN_O;
     }
-    
+
     if (grid[1][1] != EMPTY) {
         if (grid[0][0] == grid[1][1] && grid[1][1] == grid[2][2])
             return (grid[1][1] == X) ? WIN_X : WIN_O;
         if (grid[0][2] == grid[1][1] && grid[1][1] == grid[2][0])
             return (grid[1][1] == X) ? WIN_X : WIN_O;
     }
-    
+
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
             if (grid[i][j] == EMPTY)
                 return PLAYING;
-                
+
     return DRAW;
 }
 
@@ -77,15 +103,16 @@ void drawGrid(SDL_Renderer* renderer) {
 }
 
 int main() {
+    Stack S;
     if (SDL_Init(SDL_INIT_VIDEO) != 0 || TTF_Init() != 0) {
         cerr << "Initialization failed: " << SDL_GetError() << endl;
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Tic-tac-toe", 
+    SDL_Window* window = SDL_CreateWindow("Tic-tac-toe",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1,
         SDL_RENDERER_ACCELERATED);
 
     TTF_Font* font = TTF_OpenFont("font.ttf", 48);
@@ -98,7 +125,7 @@ int main() {
     bool isXTurn = true;
     GameState gameState = PLAYING;
     bool running = true;
-    
+
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderClear(renderer);
     drawGrid(renderer);
@@ -113,25 +140,26 @@ int main() {
             else if (event.type == SDL_MOUSEBUTTONDOWN && gameState == PLAYING) {
                 int x = event.button.x / CELL_SIZE;
                 int y = event.button.y / CELL_SIZE;
-                
-                if (grid[x][y] == EMPTY) {
-                    grid[x][y] = isXTurn ? X : O;
+
+                if (grid[y][x] == EMPTY) {
+                    grid[y][x] = isXTurn ? X : O;
+
                     int centerX = (x * CELL_SIZE) + (CELL_SIZE / 2);
                     int centerY = (y * CELL_SIZE) + (CELL_SIZE / 2);
-                    
+
                     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-                    if (isXTurn)
-                        drawX(renderer, centerX, centerY);
-                    else
-                        drawCircle(renderer, centerX, centerY);
-                        
+
+                    S.push(x, y);
+                    if (isXTurn) drawX(renderer, centerX, centerY);
+                    else drawCircle(renderer, centerX, centerY);
+
                     gameState = checkGameState(grid);
                     if (gameState != PLAYING) {
                         const char* result = gameState == WIN_X ? "X wins!" :
-                                          gameState == WIN_O ? "O wins!" : "Draw!";
-                        renderText(renderer, font, result, SCREEN_WIDTH/2 - 100, 10);
+                                            gameState == WIN_O ? "O wins!" : "Draw!";
+                        renderText(renderer, font, result, SCREEN_WIDTH / 2 - 100, 10);
                     }
-                    
+
                     SDL_RenderPresent(renderer);
                     isXTurn = !isXTurn;
                 }
@@ -144,6 +172,34 @@ int main() {
                 SDL_RenderPresent(renderer);
                 gameState = PLAYING;
                 isXTurn = true;
+            }
+            else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_u) {
+                if (S.isEmpty()) continue;
+
+                int* popped = S.pop();
+                grid[popped[1]][popped[0]] = EMPTY;
+
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderClear(renderer);
+
+                drawGrid(renderer);
+
+                for (int i = 0; i < 3; i++) {
+                    for (int j = 0; j < 3; j++) {
+                        if (grid[i][j] != EMPTY) {
+                            int cx = j * CELL_SIZE + CELL_SIZE / 2;
+                            int cy = i * CELL_SIZE + CELL_SIZE / 2;
+
+                            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+                            if (grid[i][j] == X) drawX(renderer, cx, cy);
+                            else drawCircle(renderer, cx, cy);
+                        }
+                    }
+                }
+
+                SDL_RenderPresent(renderer);
+                isXTurn = !isXTurn;
+                gameState = PLAYING;
             }
         }
     }
